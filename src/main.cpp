@@ -1,8 +1,14 @@
 /**
- * Solar-powered weather sensor
+ * Dual DHT Temperature Sensor
  *
- * Uses Homie-ESP8266 framework to connect to the network and MQTT, read a
- * DHT sensor, report data and then deep sleep until the next reading.
+ * Uses Homie-ESP8266 framework to connect to the network and MQTT, read up
+ * to two DHT sensors, report data and then deep sleep until the next reading.
+ * Default configuration is for a refrigerator and a freezer, but can be
+ * customized for other applications.
+ *
+ * Reports for each sensor:  Temperature (celsius), Temperature (fahrenheit),
+ * Relative Humidity and Heat Index.  Also reports battery voltage, if you
+ * provide an appropriate voltage divider to an analog input.
  */
 
 #include "Arduino.h"
@@ -10,15 +16,20 @@
 #include <DHT.h>
 #include <Homie.h>
 
+// Homie node names - Comment out either to disable
 #define NODE_1 "freezer"
 #define NODE_2 "refrigerator"
 
-
-#define VOLTAGE_PIN A0
 #define DHT_PIN_1 D4
 #define DHT_PIN_2 D3
 #define DHT_TYPE DHT22
 #define DEEP_SLEEP_SECONDS 300
+
+// WeMos D1 Mini with extra 215K resistor
+// for total 415K/100K voltage divider
+// on ESP8266 A0
+#define VOLTAGE_PIN A0
+#define VOLTAGE_COEFFICIENT 0.0055
 
 HomieNode batteryNode("battery", "voltage");
 
@@ -45,7 +56,7 @@ bool temp2Reported = true;
 void reportVoltage()
 {
     int voltageCount = analogRead(VOLTAGE_PIN);
-    float voltage = 0.0055 * voltageCount;
+    float voltage = VOLTAGE_COEFFICIENT * voltageCount;
     Homie.setNodeProperty(batteryNode, "voltage", String(voltage));
 }
 
@@ -53,14 +64,17 @@ void reportVoltage()
  * Read the DHT sensor and report the data.  Keep trying on subsequent calls
  * until we successfully report.
  */
-void reportSensorData(DHT dht, HomieNode dhtNode, bool *tempReported)
+void reportSensorData(DHT &dht, HomieNode &dhtNode, bool &tempReported)
 {
-  if( ! *tempReported ) {
+  if( ! tempReported ) {
     Serial.println("Attempting to read temperature");
 
     float tempC = dht.readTemperature();
+    Serial.print("tempC ");  Serial.println(tempC);
     float tempF = dht.readTemperature(true);
+    Serial.print("tempF ");  Serial.println(tempF);
     float humidity = dht.readHumidity();
+    Serial.print("humididy ");  Serial.println(humidity);
 
     if( ! isnan(tempC) && ! isnan(tempF) && ! isnan(humidity) ) {
       float heatIndex = dht.computeHeatIndex(tempF, humidity);
@@ -69,7 +83,8 @@ void reportSensorData(DHT dht, HomieNode dhtNode, bool *tempReported)
       Homie.setNodeProperty(dhtNode, "humidity", String(humidity));
       Homie.setNodeProperty(dhtNode, "heatIndex", String(heatIndex));
 
-      *tempReported = true;
+      tempReported = true;
+      Serial.println("Reported temperature");
     }
   }
 }
@@ -82,9 +97,11 @@ void setupHandler()
   #ifdef NODE_1
   dht1.begin();
   #endif
+
   #ifdef NODE_2
   dht2.begin();
   #endif
+
   reportVoltage();
 }
 
@@ -94,11 +111,11 @@ void setupHandler()
 void loopHandler()
 {
   #ifdef NODE_1
-  reportSensorData(dht1, dhtNode1, &temp1Reported);
+  reportSensorData(dht1, dhtNode1, temp1Reported);
   #endif
 
   #ifdef NODE_2
-  reportSensorData(dht2, dhtNode2, &temp2Reported);
+  reportSensorData(dht2, dhtNode2, temp2Reported);
   #endif
 
   if( temp1Reported && temp2Reported ) {
