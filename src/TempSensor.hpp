@@ -22,7 +22,7 @@ private:
   float _tempF;
   float _humidity;
 
-  DHT *_dht;
+  DHT _dht;
   int _pin;
 
 };

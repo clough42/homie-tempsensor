@@ -32,7 +32,7 @@
 #define VOLTAGE_COEFFICIENT 0.0055
 
 bool reported = false;
-HomieNode batteryNode("battery", "voltage");
+HomieNode batteryNode("battery1s", "voltage");
 
 #ifdef NODE_1
 HomieNode dhtNode1(NODE_1, "dht");
@@ -52,7 +52,7 @@ void reportVoltage()
 {
     int voltageCount = analogRead(VOLTAGE_PIN);
     float voltage = VOLTAGE_COEFFICIENT * voltageCount;
-    Homie.setNodeProperty(batteryNode, "voltage", String(voltage));
+    Homie.setNodeProperty(batteryNode, "voltage").send(String(voltage));
 }
 
 /**
@@ -62,9 +62,9 @@ void reportVoltage()
 void reportSensorData(TempSensor &sensor, HomieNode &dhtNode)
 {
   Serial.println("Reporting temperature");
-  Homie.setNodeProperty(dhtNode, "tempC", String(sensor.getTempC()));
-  Homie.setNodeProperty(dhtNode, "tempF", String(sensor.getTempF()));
-  Homie.setNodeProperty(dhtNode, "humidity", String(sensor.getHumidity()));
+  Homie.setNodeProperty(dhtNode, "tempC").send(String(sensor.getTempC()));
+  Homie.setNodeProperty(dhtNode, "tempF").send(String(sensor.getTempF()));
+  Homie.setNodeProperty(dhtNode, "humidity").send(String(sensor.getHumidity()));
   Serial.println("Reported temperature");
 }
 
@@ -94,7 +94,7 @@ void loopHandler()
 
     reported = true;
 
-    Homie.disconnectMqtt();
+    Homie.prepareForSleep();
   }
 }
 
@@ -103,27 +103,26 @@ void loopHandler()
  */
 void eventHandler(HomieEvent event) {
   switch(event) {
-    case HOMIE_MQTT_DISCONNECTED:
+    case HomieEvent::READY_FOR_SLEEP:
       Serial.println("Going to sleep...");
       ESP.deepSleep(DEEP_SLEEP_SECONDS * 1000000);
-      delay(1000); // allow deep sleep to occur
-      Serial.println("Hmm...still awake");
       break;
   }
 }
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   Homie_setFirmware("tempsensor", "1.1.0");
   Homie_setBrand("clough42");
 
-  Homie.disableResetTrigger();
-  Homie.setSetupFunction(setupHandler);
-  Homie.onEvent(eventHandler);
-  Homie.setLoopFunction(loopHandler);
-  Homie.setup();
+  Homie
+    .disableResetTrigger()
+    .setSetupFunction(setupHandler)
+    .onEvent(eventHandler)
+    .setLoopFunction(loopHandler)
+    .setup();
 
   #ifdef NODE_1
   tempSensor1.read();

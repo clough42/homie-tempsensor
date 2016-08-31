@@ -3,3 +3,5 @@
 .gcc-flags.json
 /data/homie/config.json
 /lib/homie-esp8266
+/lib/ESPAsyncTCP
+/lib/async-mqtt-client
