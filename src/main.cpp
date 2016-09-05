@@ -18,21 +18,16 @@
 #include "TempSensor.hpp"
 
 // Homie node names - Comment out either to disable
-#define NODE_1 "freezer"
-#define NODE_2 "refrigerator"
+#define NODE_1 "ambient"
+//#define NODE_2 "refrigerator"
 
 #define DHT_PIN_1 D4
 #define DHT_PIN_2 D3
-#define DEEP_SLEEP_SECONDS 300
 
-// WeMos D1 Mini with extra 215K resistor
-// for total 415K/100K voltage divider
-// on ESP8266 A0
 #define VOLTAGE_PIN A0
-#define VOLTAGE_COEFFICIENT 0.0055
 
 bool reported = false;
-HomieNode batteryNode("battery1s", "voltage");
+HomieNode batteryNode("battery", "voltage");
 
 #ifdef NODE_1
 HomieNode dhtNode1(NODE_1, "dht");
@@ -44,6 +39,8 @@ HomieNode dhtNode2(NODE_2, "dht");
 TempSensor tempSensor2(DHT_PIN_2);
 #endif
 
+HomieSetting<double> voltageCoefficientSetting("voltage_coefficient", "ADC scaling factor for battery voltage");
+HomieSetting<long> deepSleepTimeSetting("deep_sleep_seconds", "Deep sleep time, in seconds, between readings");
 
 /**
  * Report the battery voltage.
@@ -51,7 +48,7 @@ TempSensor tempSensor2(DHT_PIN_2);
 void reportVoltage()
 {
     int voltageCount = analogRead(VOLTAGE_PIN);
-    float voltage = VOLTAGE_COEFFICIENT * voltageCount;
+    float voltage = voltageCoefficientSetting.get() * voltageCount;
     Homie.setNodeProperty(batteryNode, "voltage").send(String(voltage));
 }
 
@@ -105,14 +102,14 @@ void eventHandler(HomieEvent event) {
   switch(event) {
     case HomieEvent::READY_FOR_SLEEP:
       Serial.println("Going to sleep...");
-      ESP.deepSleep(DEEP_SLEEP_SECONDS * 1000000);
+      ESP.deepSleep(deepSleepTimeSetting.get() * 1000000);
       break;
   }
 }
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   Homie_setFirmware("tempsensor", "1.1.0");
   Homie_setBrand("clough42");
